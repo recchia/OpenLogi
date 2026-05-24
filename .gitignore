@@ -21,3 +21,6 @@ devenv.local.yaml
 # Claude Code skill plumbing — local per-developer, not part of the project.
 /.agents/
 /skills-lock.json
+
+# Local planning doc — kept on disk, never committed.
+/UI.md
