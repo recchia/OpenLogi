@@ -110,12 +110,11 @@ async fn probe_one(dev: async_hid::Device) -> Result<Option<DeviceInventory>, In
     };
 
     let Some(Receiver::Bolt(bolt)) = receiver::detect(Arc::clone(&channel)) else {
-        debug!(
-            vid = format_args!("{:04x}", info.vendor_id),
-            pid = format_args!("{:04x}", info.product_id),
-            "no supported receiver (hidpp 0.2 only recognises Logi Bolt)"
-        );
-        return Ok(None);
+        // No receiver detected — this might be a directly-paired device
+        // (Bluetooth-direct, USB-C cable). HID++ at device-index 0xff
+        // addresses the device's own features. Probe in case it answers.
+        // P2.4 — verified path; no Bolt-pairing slot indirection needed.
+        return Ok(probe_direct(channel, &info).await);
     };
 
     let unique_id = bolt.get_unique_id().await.ok();
@@ -189,6 +188,53 @@ async fn probe_one(dev: async_hid::Device) -> Result<Option<DeviceInventory>, In
         },
         paired,
     }))
+}
+
+/// Probe a HID++ channel that doesn't host a Bolt receiver — for
+/// Bluetooth-direct, USB-C, or otherwise wired devices that present
+/// themselves as a HID++ device rather than a receiver (P2.4).
+///
+/// Addresses the device at index `0xff` (HID++'s "self" slot) and reads
+/// the same battery + model-info features the Bolt path uses. Returns
+/// `None` when the channel doesn't respond to HID++ at `0xff` (in which
+/// case it's neither a receiver nor a direct device we recognise).
+async fn probe_direct(
+    channel: Arc<HidppChannel>,
+    info: &async_hid::DeviceInfo,
+) -> Option<DeviceInventory> {
+    const DIRECT_DEVICE_INDEX: u8 = 0xff;
+
+    let (battery, model_info) = probe_features(&channel, DIRECT_DEVICE_INDEX).await;
+    if battery.is_none() && model_info.is_none() {
+        debug!(
+            vid = format_args!("{:04x}", info.vendor_id),
+            pid = format_args!("{:04x}", info.product_id),
+            "channel did not answer HID++ at slot 0xff — skipping"
+        );
+        return None;
+    }
+
+    // Without a Bolt receiver we don't have a wpid, codename, or pairing
+    // info — those live on the receiver registers. Use the HID name as
+    // the display fallback and leave wpid empty.
+    debug!(name = %info.name, "BT-direct / wired device recognised");
+    Some(DeviceInventory {
+        receiver: ReceiverInfo {
+            name: info.name.clone(),
+            vendor_id: info.vendor_id,
+            product_id: info.product_id,
+            unique_id: None,
+        },
+        paired: vec![PairedDevice {
+            slot: DIRECT_DEVICE_INDEX,
+            codename: Some(info.name.clone()),
+            wpid: None,
+            kind: DeviceKind::Unknown,
+            online: true,
+            battery,
+            model_info,
+        }],
+    })
 }
 
 async fn drain_device_arrival(bolt: &BoltReceiver) -> Vec<BoltDeviceConnection> {
