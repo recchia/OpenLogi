@@ -55,6 +55,27 @@ jobs:
             libssl-dev libzstd-dev pkg-config
       - run: cargo check --workspace --all-targets
 
+  # openlogi-core / openlogi-hid / openlogi-assets / openlogi-cli / openlogi-hook
+  # all compile on Linux today (the hook crate has stubs for non-macOS targets).
+  # openlogi-gui needs GPUI's wayland / x11 system libs; the same dependency set
+  # the clippy job installs is sufficient. Test workspace there as well so the
+  # config-roundtrip and binding suites run on a non-macOS host.
+  test-linux:
+    name: tests (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libudev-dev \
+            gcc g++ clang libfontconfig-dev libwayland-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev \
+            libssl-dev libzstd-dev pkg-config
+      - run: cargo test --workspace --exclude openlogi-gui
+
   test-macos:
     name: tests (macos)
     runs-on: macos-latest
@@ -63,3 +84,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-targets
+
+  check-windows:
+    name: cargo check (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # openlogi-gui's GPUI/Metal deps don't build on Windows yet — restrict to
+      # the platform-agnostic crates so the workspace stays green on push.
+      - run: cargo check -p openlogi-core -p openlogi-hid -p openlogi-assets -p openlogi-cli -p openlogi-hook --all-targets
