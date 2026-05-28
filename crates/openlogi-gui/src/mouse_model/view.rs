@@ -44,6 +44,11 @@ const CARD_EDGE_INSET: f32 = SIDE_GAP + (SIDE_W - LABEL_W);
 /// marker point per button, not a rectangle, so we size by hand.
 const ASSET_HOTSPOT: f32 = 56.;
 
+/// Diameter of the always-visible marker dot at each hotspot's centre. The
+/// surrounding [`ASSET_HOTSPOT`] square stays as a transparent hit area so
+/// clicks remain forgiving.
+const HOTSPOT_DOT: f32 = 10.;
+
 /// Vertical amplitude of the breathing loop. Two pixels reads as a soft
 /// rise/fall without feeling unstable.
 const BREATH_AMPLITUDE: f32 = 2.0;
@@ -283,9 +288,10 @@ fn map_slot_name(name: &str) -> Option<ButtonId> {
 }
 
 /// Lay labels out on the left side, evenly spaced down the mouse's vertical
-/// extent in the same order the hotspots appear in the asset metadata.
-/// Logitech's `label.{x,y}` direction codes are ignored for now — the
-/// current layout reserves the right gutter for the DPI / gesture column.
+/// extent. Slots are assigned in order of the hotspots' y position (top
+/// hotspot → top label) so leader lines don't cross — the previous
+/// metadata-order layout produced a tangled mess on devices whose buttons
+/// aren't listed top-to-bottom in the assignment array.
 #[allow(
     clippy::cast_precision_loss,
     reason = "hotspot count is bounded by ButtonId variants — well under f32 mantissa"
@@ -296,13 +302,29 @@ fn labels_from_hotspots(hotspots: &[Hotspot]) -> Vec<Label> {
     }
     let mouse_h = MOUSE_MODEL_SIZE.1;
     let step = mouse_h / (hotspots.len() as f32 + 1.);
+
+    // Sort indices by hotspot center y; the resulting rank is the slot
+    // each label occupies on the left gutter.
+    let mut ranks: Vec<usize> = (0..hotspots.len()).collect();
+    ranks.sort_by(|&a, &b| {
+        hotspots[a]
+            .center()
+            .1
+            .partial_cmp(&hotspots[b].center().1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut slot_of: Vec<usize> = vec![0; hotspots.len()];
+    for (rank, idx) in ranks.into_iter().enumerate() {
+        slot_of[idx] = rank;
+    }
+
     hotspots
         .iter()
         .enumerate()
         .map(|(i, h)| Label {
             id: h.id,
             side: Side::Left,
-            y: step * (i as f32 + 1.),
+            y: step * (slot_of[i] as f32 + 1.),
         })
         .collect()
 }
@@ -502,27 +524,28 @@ impl RenderOnce for HotspotTrigger {
         // for the percentage) and the popover's `on_mouse_down` never
         // receives clicks. Painting explicit pixels gives the popover's
         // wrapper a real hit-test region.
-        // Hotspot trigger fills its wrapper (the absolute-positioned div
-        // in `hotspot_popover` carries the geometry). Explicit pixel
-        // dimensions rather than `.size_full()` so gpui-component's
-        // Popover wrapper has a real hit-test region: without them the
-        // popover's parent collapses to 0×0 and clicks never register.
+        //
+        // The outer 56×56 stays transparent so the cursor finds the
+        // popover from a generous radius; the visible marker is a small
+        // always-on dot centred inside.
         div()
             .id(self.id)
+            .flex()
+            .items_center()
+            .justify_center()
             .w(px(hotspot.w))
             .h(px(hotspot.h))
-            .rounded_md()
-            .border_2()
-            .border_color(if highlighted {
-                gpui::Hsla::from(rgb(ACCENT_BLUE))
-            } else {
-                hsla(0., 0., 0., 0.)
-            })
-            .bg(if highlighted {
-                hsla(0.6, 0.85, 0.6, 0.18)
-            } else {
-                hsla(0., 0., 0., 0.)
-            })
+            .child(
+                div()
+                    .w(px(HOTSPOT_DOT))
+                    .h(px(HOTSPOT_DOT))
+                    .rounded_full()
+                    .bg(if highlighted {
+                        gpui::Hsla::from(rgb(ACCENT_BLUE))
+                    } else {
+                        hsla(0., 0., 0.7, 0.75)
+                    }),
+            )
             .on_hover(move |hovered, _window, cx| {
                 let is_hovered = *hovered;
                 view.update(cx, |this, cx| {
