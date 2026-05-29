@@ -122,6 +122,16 @@ fn main() -> Result<()> {
     gpui_platform::application().run(move |cx| {
         gpui_component::init(cx);
         app_menu::install(cx);
+
+        // First launch without permission: proactively raise the native
+        // macOS Accessibility dialog (it carries an "Open System Settings"
+        // button and registers the app in the list) instead of waiting for
+        // the user to find the gate's button. macOS only shows this once per
+        // trust state, so the in-app gate remains the path on later launches.
+        if !Hook::has_accessibility() {
+            Hook::prompt_accessibility();
+        }
+
         cx.spawn(async move |cx| {
             let bounds = cx.update(|cx| Bounds::centered(None, Size::new(px(1100.), px(750.)), cx));
             let options = WindowOptions {
