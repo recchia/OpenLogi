@@ -30,7 +30,7 @@ use gpui::{
     AppContext, BorrowAppContext as _, Bounds, SharedString, Size, Styled, TitlebarOptions,
     WindowBounds, WindowOptions, px,
 };
-use gpui_component::{ActiveTheme, Root};
+use gpui_component::{ActiveTheme, Root, Theme, ThemeMode};
 use openlogi_core::binding::{Action, ButtonId};
 use openlogi_core::config::Config;
 use openlogi_core::device::{DeviceInventory, DeviceModelInfo};
@@ -108,6 +108,12 @@ fn main() -> Result<()> {
 
     gpui_platform::application().run(move |cx| {
         gpui_component::init(cx);
+        // gpui_component::init defaults to ThemeMode::Light, but the whole
+        // app is hand-painted from theme.rs's dark palette. Without this the
+        // app's own surfaces look dark while gpui-component widgets (notably
+        // the binding Popover) render on a white theme surface — the "white
+        // popover under dark UI" mismatch. Pin dark so both agree.
+        Theme::change(ThemeMode::Dark, None, cx);
         app_menu::install(cx);
         cx.spawn(async move |cx| {
             let bounds = cx.update(|cx| Bounds::centered(None, Size::new(px(1100.), px(750.)), cx));
