@@ -21,6 +21,7 @@ jobs:
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if is_draft="$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq .isDraft 2>/dev/null)"; then
             if [ "$is_draft" != "true" ]; then
@@ -195,6 +196,7 @@ jobs:
       - name: Upload DMG to draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release upload "${GITHUB_REF_NAME}" dist/*.dmg --clobber
 
@@ -258,6 +260,7 @@ jobs:
       - name: Upload checksums to draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release upload "${GITHUB_REF_NAME}" dist/SHA256SUMS --clobber
 
@@ -289,6 +292,7 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release edit "${GITHUB_REF_NAME}" --draft=false
 
