@@ -96,9 +96,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
     runHook postInstall
   '';
 
-  # `nix-update openlogi` (and nixpkgs' autobump) bump the version and refetch
-  # src.hash + cargoHash automatically — effective once `src` is the
-  # fetchFromGitHub form above (a local `src` has no remote version to track).
+  # This flake builds the local working tree, so `nix-update` can't refresh the
+  # cargoHash (it tracks a remote version a local `src` doesn't have). After any
+  # Cargo.lock change, regenerate it with `./nix/refresh-cargo-hash.sh`; the
+  # `nix.yml` CI also fails closed on a stale hash and prints the correct one.
+  # `updateScript` is kept for the nixpkgs fetchFromGitHub form (autobump).
   passthru.updateScript = nix-update-script { };
 
   meta = {
