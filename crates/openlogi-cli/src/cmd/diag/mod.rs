@@ -118,11 +118,16 @@ pub(crate) async fn select_device(
 
     if !required_features.is_empty() {
         for c in &devices {
-            // dump_features can legitimately fail for a sleepy/offline device;
-            // skip those and keep looking rather than aborting the whole pick.
-            if let Ok(entries) = dump_features(&c.route).await {
-                if entries.iter().any(|e| required_features.contains(&e.id)) {
-                    return Ok((c.route.clone(), c.name.clone()));
+            match dump_features(&c.route).await {
+                Ok(entries) => {
+                    if entries.iter().any(|e| required_features.contains(&e.id)) {
+                        return Ok((c.route.clone(), c.name.clone()));
+                    }
+                }
+                Err(e) => {
+                    // Sleepy/offline devices can fail legitimately; log so the
+                    // silent fallthrough is visible if a healthy device is skipped.
+                    tracing::warn!("skipping {} ({}): feature probe failed: {e:#}", c.name, c.route);
                 }
             }
         }
