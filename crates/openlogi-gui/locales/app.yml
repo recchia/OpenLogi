@@ -552,6 +552,73 @@ _version: 2
   zh-CN: 在菜单栏保留 OpenLogi 图标；关闭后改为停留在程序坞中。
   zh-HK: 在選單列保留 OpenLogi 圖示；關閉後改為停留在 Dock 中。
   zh-TW: 在選單列保留 OpenLogi 圖示；關閉後改為停留在 Dock 中。
+# ── Settings → Assets section (windows/settings.rs) ─────────────────────────
+"Assets":
+  ja: アセット
+  ru: "Ресурсы"
+  zh-CN: 资源
+  zh-HK: 資源
+  zh-TW: 資源
+"Automatically download device images":
+  ja: デバイス画像を自動的にダウンロード
+  ru: "Автоматически загружать изображения устройств"
+  zh-CN: 自动下载设备图片
+  zh-HK: 自動下載裝置圖片
+  zh-TW: 自動下載裝置圖片
+"Fetch device renders from assets.openlogi.org when a device connects. When off, OpenLogi makes no asset network requests; bundled art and the silhouette still show.":
+  ja: デバイス接続時に assets.openlogi.org からデバイス画像を取得します。オフにすると、OpenLogi はアセットのネットワーク要求を一切行わず、バンドルされた画像とシルエットのみが表示されます。
+  ru: "Загружать изображения устройства с assets.openlogi.org при подключении. Когда выключено, OpenLogi не делает сетевых запросов за ресурсами; по-прежнему показываются встроенные изображения и силуэт."
+  zh-CN: 设备连接时从 assets.openlogi.org 获取设备渲染图。关闭后,OpenLogi 不发起任何资源网络请求,仍会显示内置图片与剪影。
+  zh-HK: 裝置連線時從 assets.openlogi.org 取得裝置渲染圖。關閉後,OpenLogi 不會發出任何資源網路請求,仍會顯示內建圖片與剪影。
+  zh-TW: 裝置連線時從 assets.openlogi.org 取得裝置算圖。關閉後,OpenLogi 不會發出任何資源網路請求,仍會顯示內建圖片與剪影。
+"Refresh assets":
+  ja: アセットを更新
+  ru: "Обновить ресурсы"
+  zh-CN: 刷新资源
+  zh-HK: 重新整理資源
+  zh-TW: 重新整理資源
+"Refresh":
+  ja: 更新
+  ru: "Обновить"
+  zh-CN: 刷新
+  zh-HK: 重新整理
+  zh-TW: 重新整理
+"Re-download images for the connected devices now.":
+  ja: 接続中のデバイスの画像を今すぐ再ダウンロードします。
+  ru: "Заново загрузить изображения для подключённых устройств."
+  zh-CN: 立即为已连接的设备重新下载图片。
+  zh-HK: 立即為已連線的裝置重新下載圖片。
+  zh-TW: 立即為已連線的裝置重新下載圖片。
+"Clear cache":
+  ja: キャッシュをクリア
+  ru: "Очистить кэш"
+  zh-CN: 清空缓存
+  zh-HK: 清除快取
+  zh-TW: 清除快取
+"Clear":
+  ja: クリア
+  ru: "Очистить"
+  zh-CN: 清空
+  zh-HK: 清除
+  zh-TW: 清除
+"Downloaded images currently use %{size}.":
+  ja: ダウンロード済みの画像は現在 %{size} を使用しています。
+  ru: "Загруженные изображения сейчас занимают %{size}."
+  zh-CN: 已下载的图片当前占用 %{size}。
+  zh-HK: 已下載的圖片目前佔用 %{size}。
+  zh-TW: 已下載的圖片目前佔用 %{size}。
+"Cache location":
+  ja: キャッシュの場所
+  ru: "Расположение кэша"
+  zh-CN: 缓存位置
+  zh-HK: 快取位置
+  zh-TW: 快取位置
+"Show the downloaded-images folder in your file manager.":
+  ja: ダウンロードした画像のフォルダをファイルマネージャーで表示します。
+  ru: "Открыть папку загруженных изображений в файловом менеджере."
+  zh-CN: 在文件管理器中打开已下载图片所在的文件夹。
+  zh-HK: 在檔案管理員中開啟已下載圖片所在的資料夾。
+  zh-TW: 在檔案管理員中開啟已下載圖片所在的資料夾。
 "Language":
   ja: 言語
   ru: "Язык"

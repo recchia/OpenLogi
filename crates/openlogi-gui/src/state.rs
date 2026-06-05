@@ -899,6 +899,16 @@ impl AppState {
         }
     }
 
+    pub fn set_auto_download_assets(&mut self, enabled: bool) {
+        if self.config.app_settings.auto_download_assets == enabled {
+            return;
+        }
+        self.config.app_settings.auto_download_assets = enabled;
+        if let Err(e) = self.config.save_atomic() {
+            warn!(error = %e, "could not persist auto-download-assets setting");
+        }
+    }
+
     /// Record the answer to the first-run update-check prompt: enable (or leave
     /// disabled) the check, and mark the prompt as seen so it never reappears.
     /// Persists once.

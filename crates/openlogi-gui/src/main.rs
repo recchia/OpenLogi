@@ -130,6 +130,11 @@ fn main() -> Result<()> {
         watchers::accessibility::spawn(std::time::Duration::from_millis(1200));
     let (pairing_ctrl_tx, mut pairing_evt_rx) = watchers::pairing::spawn();
 
+    // Manual asset actions (Settings → Assets): Refresh / Clear cache. The
+    // sender is published as a global so the Settings window can drive the
+    // sync that lives on the main loop below.
+    let (asset_ctrl_tx, mut asset_ctrl_rx) = tokio::sync::mpsc::unbounded_channel::<AssetCommand>();
+
     // Status-item (tray) click events (Open / Quit), drained by a dedicated
     // task below. macOS-only: there is no status item on other platforms.
     #[cfg(target_os = "macos")]
@@ -165,6 +170,7 @@ fn main() -> Result<()> {
         // Device window's buttons can drive the watcher via globals.
         cx.set_global(windows::add_device::PairingControl(pairing_ctrl_tx));
         cx.set_global(windows::add_device::PairingUi::Idle);
+        cx.set_global(AssetControl(asset_ctrl_tx));
 
         if !Hook::has_accessibility() {
             Hook::prompt_accessibility();
@@ -255,31 +261,43 @@ fn main() -> Result<()> {
             let sync_state = Arc::new(AtomicU8::new(SYNC_IDLE));
             let mut sync_attempts: u32 = 0;
             let mut last_sync_at: Option<Instant> = None;
+            // Most recent inventory snapshot, kept so a manual Refresh / Clear
+            // (the AssetControl arm below) can sync the current devices without
+            // waiting for the next tick.
+            let mut latest_inv: Vec<DeviceInventory> = Vec::new();
             loop {
                 tokio::select! {
                     Some(new_inv) = inventory_rx.recv() => {
-                        // Kick off (or retry) the one-shot asset sync. Gate on a
+                        latest_inv = new_inv;
+                        // Kick off (or retry) the automatic asset sync. Gate on a
                         // snapshot that actually carries model info — `!is_empty()`
                         // alone could fire on a device whose DeviceInformation read
                         // hasn't resolved yet, leaving its art un-synced. `RUNNING`
                         // blocks a second concurrent sync; `DONE` latches it off;
                         // `FAILED` retries once its backoff window elapses, so a
                         // transient network error no longer strands the device on
-                        // the silhouette until an app restart.
+                        // the silhouette until an app restart. The whole thing is
+                        // skipped when the user turned auto-download off — a manual
+                        // Refresh still works via the AssetControl arm below.
+                        let auto_download = cx.update(|cx| {
+                            cx.try_global::<AppState>()
+                                .is_none_or(|s| s.app_settings().auto_download_assets)
+                        });
                         let state = sync_state.load(Ordering::Acquire);
                         let backoff_passed = last_sync_at
                             .is_none_or(|t| t.elapsed() >= sync_retry_delay(sync_attempts));
-                        if matches!(state, SYNC_IDLE | SYNC_FAILED)
+                        if auto_download
+                            && matches!(state, SYNC_IDLE | SYNC_FAILED)
                             && backoff_passed
-                            && !collect_models(&new_inv).is_empty()
+                            && !collect_models(&latest_inv).is_empty()
                         {
                             sync_attempts = sync_attempts.saturating_add(1);
                             last_sync_at = Some(Instant::now());
                             sync_state.store(SYNC_RUNNING, Ordering::Release);
-                            let inv = new_inv.clone();
+                            let inv = latest_inv.clone();
                             let state = Arc::clone(&sync_state);
                             std::thread::spawn(move || {
-                                let next = if sync_assets_if_needed(&inv) {
+                                let next = if sync_assets(&inv, false) {
                                     SYNC_DONE
                                 } else {
                                     SYNC_FAILED
@@ -290,11 +308,45 @@ fn main() -> Result<()> {
                         cx.update(|cx| {
                             let cache = asset::AssetResolver::new();
                             cx.update_global::<AppState, _>(|state, _| {
-                                state.refresh_inventories(&new_inv, &cache);
+                                state.refresh_inventories(&latest_inv, &cache);
                                 state.scanning = false;
                             });
                             #[cfg(target_os = "macos")]
                             platform::tray::set_device_lines(&tray_device_lines(cx));
+                        });
+                    }
+                    Some(cmd) = asset_ctrl_rx.recv() => {
+                        // Manual Refresh / Clear from Settings → Assets. Clear wipes
+                        // the per-user cache first; both then force a fresh fetch
+                        // (bypassing the auto-download policy) for the current
+                        // devices, resetting the retry backoff so it isn't delayed.
+                        if matches!(cmd, AssetCommand::ClearCache) {
+                            if let Err(e) = asset::clear_cache() {
+                                warn!(error = %e, "could not clear asset cache");
+                            }
+                        }
+                        if sync_state.load(Ordering::Acquire) != SYNC_RUNNING {
+                            sync_attempts = 0;
+                            last_sync_at = None;
+                            sync_state.store(SYNC_RUNNING, Ordering::Release);
+                            let inv = latest_inv.clone();
+                            let state = Arc::clone(&sync_state);
+                            std::thread::spawn(move || {
+                                let next = if sync_assets(&inv, true) {
+                                    SYNC_DONE
+                                } else {
+                                    SYNC_FAILED
+                                };
+                                state.store(next, Ordering::Release);
+                            });
+                        }
+                        // Repaint now so a cleared cache drops to the silhouette
+                        // immediately; the forced re-fetch lands on the next tick.
+                        cx.update(|cx| {
+                            let cache = asset::AssetResolver::new();
+                            cx.update_global::<AppState, _>(|state, _| {
+                                state.refresh_inventories(&latest_inv, &cache);
+                            });
                         });
                     }
                     Some(bundle) = app_rx.recv() => {
@@ -373,6 +425,22 @@ const SYNC_RUNNING: u8 = 1;
 const SYNC_DONE: u8 = 2;
 const SYNC_FAILED: u8 = 3;
 
+/// A manual asset action requested from the Settings → Assets tab, pushed to
+/// the main event loop via [`AssetControl`].
+pub enum AssetCommand {
+    /// Force-fetch assets for the connected devices now, bypassing the
+    /// automatic download policy.
+    Refresh,
+    /// Delete the per-user cache, then re-fetch.
+    ClearCache,
+}
+
+/// Global handle the Settings window uses to push [`AssetCommand`]s into the
+/// main loop, mirroring [`windows::add_device::PairingControl`].
+pub struct AssetControl(pub tokio::sync::mpsc::UnboundedSender<AssetCommand>);
+
+impl gpui::Global for AssetControl {}
+
 /// Minimum gap before re-attempting a failed sync, doubling with each
 /// consecutive attempt and capped at a minute. The first attempt is
 /// immediate (`last_sync_at` is `None`); after that a permanently-down host
@@ -389,9 +457,13 @@ fn sync_retry_delay(attempts: u32) -> Duration {
 /// sync completed (or wasn't needed) and `false` when it failed and should be
 /// retried. Runs on a dedicated background thread — the HTTP layer's blocking
 /// retries are fine here.
-fn sync_assets_if_needed(inventories: &[DeviceInventory]) -> bool {
+///
+/// `force` bypasses the automatic [`should_run`](asset::sync::should_run)
+/// policy: the Settings → Assets "Refresh" button always fetches, even in a
+/// release build that would otherwise serve only bundled art.
+fn sync_assets(inventories: &[DeviceInventory], force: bool) -> bool {
     let probe_cache = asset::AssetResolver::new();
-    if !asset::sync::should_run(probe_cache.has_bundle_root()) {
+    if !force && !asset::sync::should_run(probe_cache.has_bundle_root()) {
         return true;
     }
     let server =
