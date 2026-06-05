@@ -325,7 +325,14 @@ fn main() -> Result<()> {
                                 warn!(error = %e, "could not clear asset cache");
                             }
                         }
-                        if sync_state.load(Ordering::Acquire) != SYNC_RUNNING {
+                        // Only kick off a sync when there's actually something to
+                        // fetch. Spawning on an empty inventory would fetch only the
+                        // index, store `SYNC_DONE`, and then wedge the auto-sync gate
+                        // (which fires on IDLE/FAILED) so a device connecting later
+                        // never gets its art — the user would have to Refresh again.
+                        if !collect_models(&latest_inv).is_empty()
+                            && sync_state.load(Ordering::Acquire) != SYNC_RUNNING
+                        {
                             sync_attempts = 0;
                             last_sync_at = None;
                             sync_state.store(SYNC_RUNNING, Ordering::Release);
