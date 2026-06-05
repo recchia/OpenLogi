@@ -41,8 +41,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
   #   };
 
   # One FOD vendors every dependency, including the zed / wgpu / font-kit git
-  # forks gpui pulls in. Same approach as nixpkgs' zed-editor.
-  cargoHash = "sha256-xtO10OkV334y7FSuY+1Bof5aZsm+lwW9rc7I22U8Mjs=";
+  # forks gpui pulls in. Same approach as nixpkgs' zed-editor. Use the value the
+  # `nix.yml` CI build reports — it fails closed on a stale hash and prints
+  # `To correct the hash mismatch ... use "sha256-..."`. NB: the fetchCargoVendor
+  # hash is not reproducible across environments here, so a locally-built value
+  # can differ from CI's; trust CI's.
+  cargoHash = "sha256-LXM+EP46KlS67n0klchrwBpTrobxYCsjVKW6oZ9Sygc=";
 
   postPatch = ''
     # .cargo/config.toml forces `linker = /usr/bin/cc` + a /Applications/Xcode
@@ -96,11 +100,9 @@ rustPlatform.buildRustPackage (finalAttrs: {
     runHook postInstall
   '';
 
-  # This flake builds the local working tree, so `nix-update` can't refresh the
-  # cargoHash (it tracks a remote version a local `src` doesn't have). After any
-  # Cargo.lock change, regenerate it with `./nix/refresh-cargo-hash.sh`; the
-  # `nix.yml` CI also fails closed on a stale hash and prints the correct one.
-  # `updateScript` is kept for the nixpkgs fetchFromGitHub form (autobump).
+  # `updateScript` is for the nixpkgs fetchFromGitHub form (autobump bumps
+  # version + cargoHash). This local-`src` flake refreshes cargoHash from the
+  # nix.yml CI log instead (see the cargoHash note above).
   passthru.updateScript = nix-update-script { };
 
   meta = {

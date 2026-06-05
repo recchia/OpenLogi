@@ -7,7 +7,7 @@ name: Nix CI
 # on every Rust change (Rust CI covers those).
 on:
   push:
-    branches: [main, master]
+    branches: [master]
     paths:
       - "Cargo.lock"
       - "flake.nix"
