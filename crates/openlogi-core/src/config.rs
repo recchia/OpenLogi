@@ -87,6 +87,13 @@ pub struct AppSettings {
     /// item. macOS-only; ignored on other platforms.
     #[serde(default = "default_true")]
     pub show_in_menu_bar: bool,
+    /// Whether the GUI automatically downloads device images from
+    /// `assets.openlogi.org` when a device appears. `true` (default) keeps
+    /// the current behavior; `false` makes no asset network requests at all
+    /// (the app falls back to bundled art and the synthetic silhouette). A
+    /// manual "Refresh assets" in Settings still fetches on demand regardless.
+    #[serde(default = "default_true")]
+    pub auto_download_assets: bool,
     /// UI language as a BCP-47-ish locale code matching the GUI's bundled
     /// locales (`"en"`, `"ja"`, `"ru"`, `"zh-CN"`, `"zh-HK"`, `"zh-TW"`).
     /// `None` means "follow the system locale", which the GUI resolves at
@@ -129,6 +136,7 @@ impl Default for AppSettings {
             check_for_updates: false,
             update_prompt_seen: false,
             show_in_menu_bar: true,
+            auto_download_assets: true,
             language: None,
             thumbwheel_sensitivity: DEFAULT_THUMBWHEEL_SENSITIVITY,
         }
