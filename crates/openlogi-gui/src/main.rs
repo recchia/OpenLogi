@@ -265,10 +265,24 @@ fn main() -> Result<()> {
             // (the AssetControl arm below) can sync the current devices without
             // waiting for the next tick.
             let mut latest_inv: Vec<DeviceInventory> = Vec::new();
+            // A manual Refresh / Clear queued while a sync was in flight, run by
+            // `run_pending_manual_sync` once that sync finishes.
+            let mut manual_pending = false;
+            let mut manual_clear = false;
             loop {
                 tokio::select! {
                     Some(new_inv) = inventory_rx.recv() => {
                         latest_inv = new_inv;
+                        // Land any manual Refresh/Clear that was deferred because a
+                        // sync was running when the button was clicked.
+                        run_pending_manual_sync(
+                            &mut manual_pending,
+                            &mut manual_clear,
+                            &sync_state,
+                            &mut sync_attempts,
+                            &mut last_sync_at,
+                            &latest_inv,
+                        );
                         // Kick off (or retry) the automatic asset sync. Gate on a
                         // snapshot that actually carries model info — `!is_empty()`
                         // alone could fire on a device whose DeviceInformation read
@@ -316,37 +330,25 @@ fn main() -> Result<()> {
                         });
                     }
                     Some(cmd) = asset_ctrl_rx.recv() => {
-                        // Manual Refresh / Clear from Settings → Assets. Clear wipes
-                        // the per-user cache first; both then force a fresh fetch
+                        // Manual Refresh / Clear from Settings → Assets. Queue it and
+                        // run it via the shared helper, which forces a fresh fetch
                         // (bypassing the auto-download policy) for the current
-                        // devices, resetting the retry backoff so it isn't delayed.
+                        // devices and, for Clear, wipes the cache first — but only
+                        // once no sync is in flight, so the wipe never races an
+                        // in-flight download. If a sync is running, the next
+                        // inventory tick lands the deferred command.
+                        manual_pending = true;
                         if matches!(cmd, AssetCommand::ClearCache) {
-                            if let Err(e) = asset::clear_cache() {
-                                warn!(error = %e, "could not clear asset cache");
-                            }
+                            manual_clear = true;
                         }
-                        // Only kick off a sync when there's actually something to
-                        // fetch. Spawning on an empty inventory would fetch only the
-                        // index, store `SYNC_DONE`, and then wedge the auto-sync gate
-                        // (which fires on IDLE/FAILED) so a device connecting later
-                        // never gets its art — the user would have to Refresh again.
-                        if !collect_models(&latest_inv).is_empty()
-                            && sync_state.load(Ordering::Acquire) != SYNC_RUNNING
-                        {
-                            sync_attempts = 0;
-                            last_sync_at = None;
-                            sync_state.store(SYNC_RUNNING, Ordering::Release);
-                            let inv = latest_inv.clone();
-                            let state = Arc::clone(&sync_state);
-                            std::thread::spawn(move || {
-                                let next = if sync_assets(&inv, true) {
-                                    SYNC_DONE
-                                } else {
-                                    SYNC_FAILED
-                                };
-                                state.store(next, Ordering::Release);
-                            });
-                        }
+                        run_pending_manual_sync(
+                            &mut manual_pending,
+                            &mut manual_clear,
+                            &sync_state,
+                            &mut sync_attempts,
+                            &mut last_sync_at,
+                            &latest_inv,
+                        );
                         // Repaint now so a cleared cache drops to the silhouette
                         // immediately; the forced re-fetch lands on the next tick.
                         cx.update(|cx| {
@@ -483,6 +485,49 @@ fn sync_assets(inventories: &[DeviceInventory], force: bool) -> bool {
             false
         }
     }
+}
+
+/// Run a queued manual asset action (Settings → Assets: Refresh / Clear) when
+/// no sync is in flight. Called both from the `AssetControl` arm and on every
+/// inventory tick, so a command issued *while a sync was running* is deferred
+/// rather than racing it: the wipe never overlaps the in-flight thread's
+/// writes, and we never spawn a second writer or wedge the state machine on
+/// `SYNC_DONE`. Once the running sync finishes, the next tick picks the
+/// command up. A no-op when nothing is pending or a sync is still running.
+fn run_pending_manual_sync(
+    pending: &mut bool,
+    clear: &mut bool,
+    sync_state: &Arc<AtomicU8>,
+    attempts: &mut u32,
+    last_at: &mut Option<Instant>,
+    inv: &[DeviceInventory],
+) {
+    if !*pending || sync_state.load(Ordering::Acquire) == SYNC_RUNNING {
+        return;
+    }
+    if *clear {
+        if let Err(e) = asset::clear_cache() {
+            warn!(error = %e, "could not clear asset cache");
+        }
+        *clear = false;
+    }
+    *pending = false;
+    if collect_models(inv).is_empty() {
+        return;
+    }
+    *attempts = 0;
+    *last_at = None;
+    sync_state.store(SYNC_RUNNING, Ordering::Release);
+    let inv = inv.to_vec();
+    let state = Arc::clone(sync_state);
+    std::thread::spawn(move || {
+        let next = if sync_assets(&inv, true) {
+            SYNC_DONE
+        } else {
+            SYNC_FAILED
+        };
+        state.store(next, Ordering::Release);
+    });
 }
 
 fn main_window_options(cx: &mut gpui::App) -> WindowOptions {
