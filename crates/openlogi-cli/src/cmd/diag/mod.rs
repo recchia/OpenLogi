@@ -127,7 +127,11 @@ pub(crate) async fn select_device(
                 Err(e) => {
                     // Sleepy/offline devices can fail legitimately; log so the
                     // silent fallthrough is visible if a healthy device is skipped.
-                    tracing::warn!("skipping {} ({}): feature probe failed: {e:#}", c.name, c.route);
+                    tracing::warn!(
+                        "skipping {} ({}): feature probe failed: {e:#}",
+                        c.name,
+                        c.route
+                    );
                 }
             }
         }

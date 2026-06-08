@@ -31,7 +31,7 @@ pub async fn run(args: LightingArgs) -> Result<()> {
     let b = (rgb & 0xff) as u8;
 
     let device_query = args.device;
-    let needle = device_query.as_deref().map(|d| d.to_lowercase());
+    let needle = device_query.as_deref().map(str::to_lowercase);
 
     let inventories = openlogi_hid::enumerate().await?;
     let (route, name) = inventories
@@ -62,7 +62,9 @@ pub async fn run(args: LightingArgs) -> Result<()> {
         })
         .ok_or_else(|| match &device_query {
             Some(q) => anyhow!("no wired device matches `--device {q}`"),
-            None => anyhow!("no wired (direct-USB) Logitech device found — is the keyboard plugged in?"),
+            None => {
+                anyhow!("no wired (direct-USB) Logitech device found — is the keyboard plugged in?")
+            }
         })?;
 
     println!("setting {name} ({route}) to #{r:02x}{g:02x}{b:02x}");
