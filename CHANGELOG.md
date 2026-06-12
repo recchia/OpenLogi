@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.9](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.8...openlogi-core-v0.6.9) - 2026-06-12
+
+### Added
+
+- *(gui)* add a Copy Diagnostics button to the About window ([#206](https://github.com/AprilNEA/OpenLogi/pull/206))
+
+## [0.6.8](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.7...openlogi-core-v0.6.8) - 2026-06-12
+
+### Added
+
+- *(linux)* launch_at_login + input device access permission check ([#172](https://github.com/AprilNEA/OpenLogi/pull/172))
+- add mouse button 4 and 5 options ([#96](https://github.com/AprilNEA/OpenLogi/pull/96))
+
+## [0.6.7](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.6...openlogi-core-v0.6.7) - 2026-06-12
+
+### Fixed
+
+- *(core)* post macOS volume and media keys as NX system-defined events ([#184](https://github.com/AprilNEA/OpenLogi/pull/184))
+
+### Other
+
+- *(ipc)* pin the wire format with golden bytes and mark wire types
+
 ## [0.6.6](https://github.com/AprilNEA/OpenLogi/compare/openlogi-hidpp-v0.6.5...openlogi-hidpp-v0.6.6) - 2026-06-10
 
 ### Fixed

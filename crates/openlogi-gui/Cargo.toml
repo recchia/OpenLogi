@@ -45,7 +45,7 @@ gpui-updater = { git = "https://github.com/AprilNEA/gpui-updater", tag = "v0.0.4
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
 objc2-app-kit = { version = "0.3.2", features = ["NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSResponder", "NSView", "NSMenu", "NSMenuItem", "NSImage", "NSApplication"] }
-objc2-foundation = { version = "0.3.2", features = ["NSString"] }
+objc2-foundation = { version = "0.3.2", features = ["NSString", "NSProcessInfo"] }
 
 # unsafe_code stays denied; the status-item/tray modules opt in locally with
 # #[expect(unsafe_code)] for the few objc2 calls (init-with-action, set-target,
@@ -63,7 +63,8 @@ doc_markdown = "allow"
 [package.metadata.bundle]
 name = "OpenLogi"
 identifier = "org.openlogi.openlogi"
-version = "0.1.0"
+# No `version` override — cargo-bundle falls back to the crate version, which
+# is workspace-unified. A literal here goes stale the moment release-plz bumps.
 category = "public.app-category.utilities"
 short_description = "Lightweight local-first companion for Logitech HID++ peripherals."
 long_description = """\
